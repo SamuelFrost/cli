@@ -272,8 +272,8 @@ export function mergeDevContainerConfigs(base: DevContainerConfig, overlay: DevC
 }
 
 /**
- * Overlay-style merge: scalars and arrays from the overlay replace the base when set;
- * object maps and `hostRequirements` are shallow-merged with overlay keys winning.
+ * Overlay-style merge: each top-level property from the overlay replaces the base value when set;
+ * omitted overlay keys keep the inherited base value ({ ...base, ...overlay }).
  */
 function mergeDevContainerConfigsOverride(base: DevContainerConfig, overlay: DevContainerConfig): DevContainerConfig {
 	const merged = {
@@ -282,20 +282,6 @@ function mergeDevContainerConfigsOverride(base: DevContainerConfig, overlay: Dev
 	} as DevContainerConfig;
 	delete merged.extends;
 	delete merged.extendsMergeMode;
-
-	const remoteEnv = Object.assign({}, base.remoteEnv, overlay.remoteEnv);
-	assignOrDelete(merged, 'remoteEnv', Object.keys(remoteEnv).length ? remoteEnv : undefined);
-	const containerEnv = Object.assign({}, base.containerEnv, overlay.containerEnv);
-	assignOrDelete(merged, 'containerEnv', Object.keys(containerEnv).length ? containerEnv : undefined);
-	const portsAttributes = Object.assign({}, base.portsAttributes, overlay.portsAttributes);
-	assignOrDelete(merged, 'portsAttributes', Object.keys(portsAttributes).length ? portsAttributes : undefined);
-	const features = Object.assign({}, base.features, overlay.features);
-	assignOrDelete(merged, 'features', Object.keys(features).length ? features : undefined);
-	const customizations = Object.assign({}, base.customizations, overlay.customizations);
-	assignOrDelete(merged, 'customizations', Object.keys(customizations).length ? customizations : undefined);
-	const hostRequirements = Object.assign({}, base.hostRequirements, overlay.hostRequirements);
-	assignOrDelete(merged, 'hostRequirements', Object.keys(hostRequirements).length ? hostRequirements : undefined);
-
 	return merged;
 }
 

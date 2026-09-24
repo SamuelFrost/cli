@@ -65,7 +65,10 @@ describe('Dev Containers CLI extends', function () {
 				containerId = response.containerId;
 				assert.ok(containerId, 'Container id not found.');
 				assert.equal(response.configuration?.name, 'extends-up-override');
-				assert.equal(response.configuration?.remoteEnv?.EXTENDS_UP, 'override');
+				assert.deepEqual(response.configuration?.remoteEnv, {
+					OVERRIDE_ME: 'child',
+					EXTENDS_UP: 'override',
+				});
 				assert.deepEqual(response.configuration?.forwardPorts, [9999]);
 			});
 

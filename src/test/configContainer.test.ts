@@ -94,8 +94,14 @@ describe('readDevContainerConfigFile', function () {
 		assert.strictEqual(raw.name, 'Override merge');
 		assert.deepEqual(raw.forwardPorts, [443]);
 		assert.strictEqual(raw.init, false);
-		assert.strictEqual(raw.hostRequirements?.cpus, 2);
-		assert.strictEqual(raw.hostRequirements?.memory, '4gb');
+		assert.deepEqual(raw.remoteEnv, { OVERRIDE_ME: 'child' });
+		assert.deepEqual(raw.features, {
+			'ghcr.io/devcontainers/features/docker-in-docker:1': {
+				version: 'latest',
+				moby: true,
+			},
+		});
+		assert.deepEqual(raw.hostRequirements, { memory: '4gb' });
 		assert.notProperty(raw as any, 'extends');
 		assert.notProperty(raw as any, 'extendsMergeMode');
 	});
@@ -182,8 +188,6 @@ describe('mergeDevContainerConfigs', function () {
 		assert.strictEqual(merged.init, false);
 		assert.strictEqual(merged.privileged, true);
 		assert.deepEqual(merged.forwardPorts, [443]);
-		assert.strictEqual(merged.hostRequirements?.cpus, 4);
-		assert.strictEqual(merged.hostRequirements?.memory, '4gb');
-		assert.strictEqual(merged.hostRequirements?.storage, '32gb');
+		assert.deepEqual(merged.hostRequirements, { memory: '4gb' });
 	});
 });
