@@ -1,8 +1,0 @@
-{
-	"image": "ubuntu:latest",
-	"remoteEnv": {
-		"FROM_BASE": "base",
-		"OVERRIDE_ME": "base"
-	},
-	"runArgs": ["-e", "EXTENDS_UP_BASE=1"]
-}

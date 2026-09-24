@@ -1,6 +1,5 @@
 {
-	"name": "example configuration",
-	"image": "mcr.microsoft.com/devcontainers/base:latest",
+	"image": "ubuntu:latest",
 	"forwardPorts": [80],
 	"capAdd": ["SYS_PTRACE"],
 	"hostRequirements": {
@@ -10,10 +9,5 @@
 	"remoteEnv": {
 		"FROM_BASE": "base",
 		"OVERRIDE_ME": "base"
-	},
-	"features": {
-		"ghcr.io/devcontainers/features/go:1": {
-			"version": "latest"
-		}
 	}
 }

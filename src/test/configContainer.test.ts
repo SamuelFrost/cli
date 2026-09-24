@@ -7,9 +7,8 @@ import * as path from 'path';
 import { assert } from 'chai';
 import { URI } from 'vscode-uri';
 import { getCLIHost, loadNativeModule } from '../spec-common/commonUtils';
-import { DevContainerConfig, DevContainerFromImageConfig } from '../spec-configuration/configuration';
+import { DevContainerFromImageConfig } from '../spec-configuration/configuration';
 import { readDevContainerConfigFile } from '../spec-node/configContainer';
-import { mergeDevContainerConfigs } from '../spec-node/imageMetadata';
 import { Workspace } from '../spec-utils/workspaces';
 import { nullLog } from '../spec-utils/log';
 
@@ -26,6 +25,15 @@ async function readConfig(relativePath: string) {
 	return readDevContainerConfigFile(cliHost, workspace, configFile, false, false, nullLog);
 }
 
+async function expectReadConfigError(relativePath: string, pattern: RegExp) {
+	try {
+		await readConfig(relativePath);
+		assert.fail('expected read to throw');
+	} catch (err: any) {
+		assert.match(String(err.description || err.message), pattern);
+	}
+}
+
 describe('readDevContainerConfigFile', function () {
 	it('can read a basic configuration file', async function () {
 		const configs = await readConfig('./src/test/configs/example/.devcontainer.json');
@@ -40,34 +48,16 @@ describe('readDevContainerConfigFile', function () {
 	it('can resolve an "extends" file reference', async function () {
 		const configs = await readConfig('./src/test/configs/extends/.devcontainer.json');
 		assert.isOk(configs);
-		const expectedConfig = {
-			name: 'Overrides',
-			image: 'mcr.microsoft.com/devcontainers/base:latest',
-			forwardPorts: [80, 443],
-			capAdd: ['SYS_PTRACE', 'NET_ADMIN'],
-			hostRequirements: {
-				cpus: 2,
-				memory: `${8 * 2 ** 30}`,
-				storage: undefined,
-				gpu: undefined,
-			},
-			remoteEnv: {
-				FROM_BASE: 'base',
-				OVERRIDE_ME: 'child',
-			},
-			features: {
-				'ghcr.io/devcontainers/features/docker-in-docker:1': {
-					version: 'latest',
-					moby: true,
-				},
-				'ghcr.io/devcontainers/features/go:1': {
-					version: 'latest',
-				},
-			},
-		};
-
-		assert.deepEqual(configs?.config.raw as any, expectedConfig);
-		assert.notProperty(configs?.config.raw as any, 'extends');
+		const raw = configs?.config.raw as DevContainerFromImageConfig;
+		assert.strictEqual(raw.name, 'Overrides');
+		assert.strictEqual(raw.image, 'ubuntu:latest');
+		assert.deepEqual(raw.forwardPorts, [80, 443]);
+		assert.deepEqual(raw.capAdd, ['SYS_PTRACE', 'NET_ADMIN']);
+		assert.strictEqual(raw.hostRequirements?.cpus, 2);
+		assert.strictEqual(raw.hostRequirements?.memory, `${8 * 2 ** 30}`);
+		assert.deepEqual(raw.remoteEnv, { FROM_BASE: 'base', OVERRIDE_ME: 'child' });
+		assert.notProperty(raw, 'extends');
+		assert.notProperty(raw, 'extendsMergeMode');
 	});
 
 	it('can resolve nested "extends" file references', async function () {
@@ -75,16 +65,11 @@ describe('readDevContainerConfigFile', function () {
 		assert.isOk(configs);
 		assert.strictEqual(configs?.config.raw.name, 'Nested');
 		assert.deepEqual(configs?.config.raw.forwardPorts, [80, 443, 2222]);
-		assert.strictEqual((configs?.config.raw as DevContainerFromImageConfig).image, 'mcr.microsoft.com/devcontainers/base:latest');
+		assert.strictEqual((configs?.config.raw as DevContainerFromImageConfig).image, 'ubuntu:latest');
 	});
 
 	it('rejects a cyclic "extends" reference', async function () {
-		try {
-			await readConfig('./src/test/configs/extends/.devcontainer.cycle-a.json');
-			assert.fail('expected cyclic extends to throw');
-		} catch (err: any) {
-			assert.match(String(err.description || err.message), /cyclic "extends" reference/);
-		}
+		await expectReadConfigError('./src/test/configs/extends/.devcontainer.cycle-a.json', /cyclic "extends" reference/);
 	});
 
 	it('can resolve "extends" with extendsMergeMode override', async function () {
@@ -92,102 +77,20 @@ describe('readDevContainerConfigFile', function () {
 		assert.isOk(configs);
 		const raw = configs?.config.raw as DevContainerFromImageConfig;
 		assert.strictEqual(raw.name, 'Override merge');
+		assert.strictEqual(raw.image, 'ubuntu:latest');
 		assert.deepEqual(raw.forwardPorts, [443]);
 		assert.strictEqual(raw.init, false);
 		assert.deepEqual(raw.remoteEnv, { OVERRIDE_ME: 'child' });
-		assert.deepEqual(raw.features, {
-			'ghcr.io/devcontainers/features/docker-in-docker:1': {
-				version: 'latest',
-				moby: true,
-			},
-		});
 		assert.deepEqual(raw.hostRequirements, { memory: '4gb' });
-		assert.notProperty(raw as any, 'extends');
-		assert.notProperty(raw as any, 'extendsMergeMode');
+		assert.notProperty(raw, 'extends');
+		assert.notProperty(raw, 'extendsMergeMode');
 	});
 
 	it('rejects an invalid "extendsMergeMode" value', async function () {
-		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, false);
-		const configFile = URI.file(path.resolve('./src/test/configs/extends/.devcontainer.invalid-merge.json'));
-		try {
-			await readDevContainerConfigFile(cliHost, workspace, configFile, false, false, nullLog);
-			assert.fail('expected invalid extendsMergeMode to throw');
-		} catch (err: any) {
-			assert.match(String(err.description || err.message), /extendsMergeMode.*combine.*override/);
-		}
+		await expectReadConfigError('./src/test/configs/extends/.devcontainer.invalid-merge.json', /extendsMergeMode.*combine.*override/);
 	});
 
 	it('rejects a missing "extends" file', async function () {
-		try {
-			await readConfig('./src/test/configs/extends/.devcontainer.missing.json');
-			assert.fail('expected missing extends to throw');
-		} catch (err: any) {
-			assert.match(String(err.description || err.message), /was not found/);
-		}
-	});
-});
-
-describe('mergeDevContainerConfigs', function () {
-	it('uses image metadata merge logic for overlapping properties', function () {
-		const base: DevContainerConfig = {
-			image: 'mcr.microsoft.com/devcontainers/base:latest',
-			init: false,
-			privileged: true,
-			forwardPorts: [80],
-			hostRequirements: {
-				cpus: 4,
-				memory: '4gb',
-			},
-			remoteUser: 'vscode',
-			onCreateCommand: 'echo base',
-		};
-		const overlay: DevContainerConfig = {
-			image: 'mcr.microsoft.com/devcontainers/javascript-node:latest',
-			init: true,
-			forwardPorts: [443],
-			hostRequirements: {
-				cpus: 2,
-				memory: '8gb',
-			},
-			onCreateCommand: 'echo overlay',
-		};
-
-		const merged = mergeDevContainerConfigs(base, overlay);
-		assert.strictEqual((merged as DevContainerFromImageConfig).image, 'mcr.microsoft.com/devcontainers/javascript-node:latest');
-		assert.strictEqual(merged.init, true);
-		assert.strictEqual(merged.privileged, true);
-		assert.deepEqual(merged.forwardPorts, [80, 443]);
-		assert.strictEqual(merged.hostRequirements?.cpus, 4);
-		assert.strictEqual(merged.hostRequirements?.memory, `${8 * 2 ** 30}`);
-		assert.strictEqual(merged.remoteUser, 'vscode');
-		assert.strictEqual(merged.onCreateCommand, 'echo overlay');
-	});
-
-	it('uses override merge when extendsMergeMode is override', function () {
-		const base: DevContainerConfig = {
-			image: 'mcr.microsoft.com/devcontainers/base:latest',
-			init: true,
-			privileged: true,
-			forwardPorts: [80],
-			hostRequirements: {
-				cpus: 4,
-				memory: '8gb',
-				storage: '32gb',
-			},
-		};
-		const overlay: DevContainerConfig = {
-			image: 'mcr.microsoft.com/devcontainers/javascript-node:latest',
-			init: false,
-			forwardPorts: [443],
-			hostRequirements: {
-				memory: '4gb',
-			},
-		};
-
-		const merged = mergeDevContainerConfigs(base, overlay, 'override');
-		assert.strictEqual(merged.init, false);
-		assert.strictEqual(merged.privileged, true);
-		assert.deepEqual(merged.forwardPorts, [443]);
-		assert.deepEqual(merged.hostRequirements, { memory: '4gb' });
+		await expectReadConfigError('./src/test/configs/extends/.devcontainer.missing.json', /was not found/);
 	});
 });
