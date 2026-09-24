@@ -87,6 +87,30 @@ describe('readDevContainerConfigFile', function () {
 		}
 	});
 
+	it('can resolve "extends" with extendsMergeMode override', async function () {
+		const configs = await readConfig('./src/test/configs/extends/.devcontainer.override.json');
+		assert.isOk(configs);
+		const raw = configs?.config.raw as DevContainerFromImageConfig;
+		assert.strictEqual(raw.name, 'Override merge');
+		assert.deepEqual(raw.forwardPorts, [443]);
+		assert.strictEqual(raw.init, false);
+		assert.strictEqual(raw.hostRequirements?.cpus, 2);
+		assert.strictEqual(raw.hostRequirements?.memory, '4gb');
+		assert.notProperty(raw as any, 'extends');
+		assert.notProperty(raw as any, 'extendsMergeMode');
+	});
+
+	it('rejects an invalid "extendsMergeMode" value', async function () {
+		const cliHost = await getCLIHost(process.cwd(), loadNativeModule, false);
+		const configFile = URI.file(path.resolve('./src/test/configs/extends/.devcontainer.invalid-merge.json'));
+		try {
+			await readDevContainerConfigFile(cliHost, workspace, configFile, false, false, nullLog);
+			assert.fail('expected invalid extendsMergeMode to throw');
+		} catch (err: any) {
+			assert.match(String(err.description || err.message), /extendsMergeMode.*combine.*override/);
+		}
+	});
+
 	it('rejects a missing "extends" file', async function () {
 		try {
 			await readConfig('./src/test/configs/extends/.devcontainer.missing.json');
@@ -131,5 +155,35 @@ describe('mergeDevContainerConfigs', function () {
 		assert.strictEqual(merged.hostRequirements?.memory, `${8 * 2 ** 30}`);
 		assert.strictEqual(merged.remoteUser, 'vscode');
 		assert.strictEqual(merged.onCreateCommand, 'echo overlay');
+	});
+
+	it('uses override merge when extendsMergeMode is override', function () {
+		const base: DevContainerConfig = {
+			image: 'mcr.microsoft.com/devcontainers/base:latest',
+			init: true,
+			privileged: true,
+			forwardPorts: [80],
+			hostRequirements: {
+				cpus: 4,
+				memory: '8gb',
+				storage: '32gb',
+			},
+		};
+		const overlay: DevContainerConfig = {
+			image: 'mcr.microsoft.com/devcontainers/javascript-node:latest',
+			init: false,
+			forwardPorts: [443],
+			hostRequirements: {
+				memory: '4gb',
+			},
+		};
+
+		const merged = mergeDevContainerConfigs(base, overlay, 'override');
+		assert.strictEqual(merged.init, false);
+		assert.strictEqual(merged.privileged, true);
+		assert.deepEqual(merged.forwardPorts, [443]);
+		assert.strictEqual(merged.hostRequirements?.cpus, 4);
+		assert.strictEqual(merged.hostRequirements?.memory, '4gb');
+		assert.strictEqual(merged.hostRequirements?.storage, '32gb');
 	});
 });

@@ -1,0 +1,19 @@
+{
+	"extends": "./.devcontainer.base.json",
+	"extendsMergeMode": "override",
+	"name": "Override merge",
+	"forwardPorts": [443],
+	"hostRequirements": {
+		"memory": "4gb"
+	},
+	"remoteEnv": {
+		"OVERRIDE_ME": "child"
+	},
+	"init": false,
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:1": {
+			"version": "latest",
+			"moby": true
+		}
+	}
+}

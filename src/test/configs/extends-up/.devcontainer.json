@@ -1,0 +1,8 @@
+{
+	"extends": "./.devcontainer.base.json",
+	"name": "extends-up-combine",
+	"remoteEnv": {
+		"OVERRIDE_ME": "child",
+		"EXTENDS_UP": "combine"
+	}
+}

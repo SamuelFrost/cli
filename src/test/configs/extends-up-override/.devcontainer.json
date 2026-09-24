@@ -1,0 +1,11 @@
+{
+	"extends": "../extends-up/.devcontainer.base.json",
+	"extendsMergeMode": "override",
+	"name": "extends-up-override",
+	"forwardPorts": [9999],
+	"remoteEnv": {
+		"OVERRIDE_ME": "child",
+		"EXTENDS_UP": "override"
+	},
+	"init": false
+}
