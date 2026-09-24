@@ -4,7 +4,7 @@ Notable changes.
 
 ## Unreleased
 
-- Add support for the `extends` keyword so one `devcontainer.json` can inherit another using the image metadata merge logic. (https://github.com/devcontainers/spec/issues/22, https://github.com/devcontainers/cli/pull/311)
+- Add support for the `extends` keyword so one `devcontainer.json` can inherit another, with optional `extendsMergeMode` (`combine` uses image metadata merge logic; `override` replaces arrays/scalars from the child). (https://github.com/devcontainers/spec/issues/22, https://github.com/devcontainers/cli/pull/311)
 
 ## August 2026
 

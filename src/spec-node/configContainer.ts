@@ -99,12 +99,17 @@ async function readDevContainerConfigObject(cliHost: CLIHost, configUri: URI, se
 	}
 
 	const extendsPath = updated.extends;
+	const extendsMergeMode = updated.extendsMergeMode ?? 'combine';
 	delete updated.extends;
+	delete updated.extendsMergeMode;
 	if (!extendsPath) {
 		return updated;
 	}
 	if (typeof extendsPath !== 'string' || !extendsPath.trim()) {
 		throw new ContainerError({ description: `"extends" in (${uriToFsPath(configUri, cliHost.platform)}) must be a relative path to a JSON or JSONC file.` });
+	}
+	if (extendsMergeMode !== 'combine' && extendsMergeMode !== 'override') {
+		throw new ContainerError({ description: `"extendsMergeMode" in (${uriToFsPath(configUri, cliHost.platform)}) must be "combine" or "override".` });
 	}
 	if (cliHost.path.isAbsolute(extendsPath) || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(extendsPath)) {
 		throw new ContainerError({ description: `"extends" in (${uriToFsPath(configUri, cliHost.platform)}) must be a relative path within the same repository.` });
@@ -115,7 +120,7 @@ async function readDevContainerConfigObject(cliHost: CLIHost, configUri: URI, se
 	if (!parent) {
 		throw new ContainerError({ description: `Dev container config extended from (${uriToFsPath(configUri, cliHost.platform)}) was not found: ${uriToFsPath(parentUri, cliHost.platform)}.` });
 	}
-	return mergeDevContainerConfigs(parent, updated);
+	return mergeDevContainerConfigs(parent, updated, extendsMergeMode);
 }
 
 export async function readDevContainerConfigFile(cliHost: CLIHost, workspace: Workspace | undefined, configFile: URI, mountWorkspaceGitRoot: boolean, mountGitWorktreeCommonDir: boolean, output: Log, consistency?: BindMountConsistency, overrideConfigFile?: URI) {
